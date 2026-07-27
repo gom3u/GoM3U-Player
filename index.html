@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#0f172a" />
+  <title>ApexStream Web IPTV Player</title>
+  <link rel="stylesheet" href="style.css" />
+  <link rel="manifest" href="manifest.json" />
+  <!-- HLS.js Library -->
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+</head>
+<body data-theme="dark">
+  <div id="app" class="app-container">
+    
+    <!-- Sidebar / Playlist & Channel Manager -->
+    <aside id="sidebar" class="sidebar">
+      <div class="sidebar-header">
+        <div class="brand">
+          <svg class="icon-logo" viewBox="0 0 24 24"><path fill="currentColor" d="M21 3H3c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h5v2h8v-2h5c1.1 0 1.99-.9 1.99-2L23 5c0-1.1-.9-2-2-2zm0 14H3V5h18v12z"/></svg>
+          <span>ApexStream</span>
+        </div>
+        <button id="toggle-sidebar-btn" class="icon-btn" title="Toggle Sidebar">◀</button>
+      </div>
+
+      <!-- Tab Selection -->
+      <div class="sidebar-tabs">
+        <button class="tab-btn active" data-tab="channels">Channels</button>
+        <button class="tab-btn" data-tab="playlists">Playlists</button>
+        <button class="tab-btn" data-tab="settings">Settings</button>
+      </div>
+
+      <!-- Channels View -->
+      <div id="view-channels" class="tab-content active">
+        <div class="filter-controls">
+          <input type="text" id="channel-search" class="input-field" placeholder="Search channels..." />
+          <div class="filter-row">
+            <select id="group-filter" class="select-field">
+              <option value="ALL">All Groups</option>
+            </select>
+            <select id="sort-filter" class="select-field">
+              <option value="default">Default</option>
+              <option value="az">A-Z</option>
+              <option value="za">Z-A</option>
+            </select>
+          </div>
+          <div class="filter-row sub-filters">
+            <button id="filter-favs" class="toggle-chip">★ Favorites</button>
+            <button id="filter-recent" class="toggle-chip">🕒 Recent</button>
+          </div>
+        </div>
+
+        <!-- Virtual Scrolling List Container -->
+        <div id="virtual-channel-list" class="virtual-list-container">
+          <div id="virtual-spacer" class="virtual-spacer"></div>
+          <div id="virtual-content" class="virtual-content"></div>
+        </div>
+      </div>
+
+      <!-- Playlists View -->
+      <div id="view-playlists" class="tab-content">
+        <div class="playlist-actions">
+          <button id="open-add-modal" class="btn primary-btn">+ Add Playlist</button>
+        </div>
+        <div id="playlists-list" class="playlists-list"></div>
+      </div>
+
+      <!-- Settings View -->
+      <div id="view-settings" class="tab-content">
+        <div class="settings-group">
+          <label for="theme-select">Theme Style</label>
+          <select id="theme-select" class="select-field">
+            <option value="dark">Dark Slate</option>
+            <option value="oled">OLED Black</option>
+            <option value="glass">Glassmorphism</option>
+            <option value="light">Light</option>
+          </select>
+        </div>
+
+        <div class="settings-group">
+          <label for="buffer-size">HLS Max Buffer Length (Seconds)</label>
+          <input type="number" id="buffer-size" class="input-field" value="30" min="10" max="120" />
+        </div>
+
+        <div class="settings-group">
+          <button id="export-backup-btn" class="btn secondary-btn">Export Backup JSON</button>
+          <input type="file" id="import-backup-file" style="display:none" accept=".json" />
+          <button id="import-backup-btn" class="btn secondary-btn">Import Backup JSON</button>
+        </div>
+
+        <div class="settings-group">
+          <button id="clear-cache-btn" class="btn danger-btn">Clear All Data</button>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main View Area / Video Player -->
+    <main id="main-content" class="main-content">
+      <div class="player-wrapper">
+        <video id="video-player" class="video-element" playsinline></video>
+        
+        <!-- Video Overlay Controls -->
+        <div id="player-controls" class="player-controls">
+          <div class="top-bar">
+            <div id="playing-title" class="channel-title">No Channel Selected</div>
+          </div>
+          
+          <div class="center-controls">
+            <button id="btn-play-pause" class="ctrl-btn large">▶</button>
+          </div>
+
+          <div class="bottom-bar">
+            <div class="control-group">
+              <button id="btn-play" class="ctrl-btn">▶</button>
+              <button id="btn-stop" class="ctrl-btn">■</button>
+              <button id="btn-reload" class="ctrl-btn">↻</button>
+              <div class="volume-container">
+                <button id="btn-mute" class="ctrl-btn">🔊</button>
+                <input type="range" id="volume-slider" min="0" max="1" step="0.05" value="1" />
+              </div>
+            </div>
+
+            <div class="control-group">
+              <select id="quality-selector" class="select-field mini-select">
+                <option value="-1">Auto Quality</option>
+              </select>
+              <select id="audio-selector" class="select-field mini-select">
+                <option value="-1">Default Audio</option>
+              </select>
+              <button id="btn-pip" class="ctrl-btn" title="Picture in Picture">🗔</button>
+              <button id="btn-fullscreen" class="ctrl-btn" title="Fullscreen">⛶</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Modal for Adding Playlists -->
+  <div id="modal-add-playlist" class="modal-overlay hidden">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>Add New Playlist</h3>
+        <button id="close-modal-btn" class="close-btn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="tab-selectors">
+          <button class="modal-tab active" data-type="url">M3U URL</button>
+          <button class="modal-tab" data-type="file">Upload File</button>
+        </div>
+        <div class="form-group">
+          <label>Playlist Name</label>
+          <input type="text" id="playlist-name-input" class="input-field" placeholder="e.g. My Sports IPTV" />
+        </div>
+        <div id="input-type-url" class="form-group modal-tab-content active">
+          <label>M3U URL</label>
+          <input type="url" id="playlist-url-input" class="input-field" placeholder="https://provider.com/list.m3u" />
+        </div>
+        <div id="input-type-file" class="form-group modal-tab-content">
+          <label>M3U File</label>
+          <input type="file" id="playlist-file-input" class="input-field" accept=".m3u,.m3u8" />
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button id="save-playlist-btn" class="btn primary-btn">Save & Parse</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Container -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <!-- Application Modules -->
+  <script src="storage.js"></script>
+  <script src="playlist.js"></script>
+  <script src="player.js"></script>
+  <script src="ui.js"></script>
+  <script src="app.js"></script>
+</body>
+                  </html>
