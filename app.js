@@ -386,3 +386,278 @@ window.addEventListener('DOMContentLoaded', () => {
   window.app = new App();
   window.app.init();
 });
+// --- IPTV CONTROLS ENHANCEMENT MODULE ---
+
+document.addEventListener('DOMContentLoaded', () => {
+  const video = document.getElementById('iptvPlayer');
+  const container = document.getElementById('playerContainer');
+  const controlsOverlay = document.getElementById('controlsOverlay');
+  const brightnessOverlay = document.getElementById('brightnessOverlay');
+
+  const volumeSlider = document.getElementById('volumeSlider');
+  const volumeVal = document.getElementById('volumeVal');
+  const muteBtn = document.getElementById('muteBtn');
+
+  const brightnessSlider = document.getElementById('brightnessSlider');
+  const brightnessVal = document.getElementById('brightnessVal');
+  const gestureIndicator = document.getElementById('gestureIndicator');
+
+  let autoHideTimer = null;
+  let lastVolume = 1;
+
+  // ----------------------------------------------------
+  // 1. CHANNEL NAVIGATION INTEGRATION
+  // Connect these to your existing channel state variables/functions
+  // ----------------------------------------------------
+  window.currentChannelIndex = window.currentChannelIndex || 0;
+  window.channelsArray = window.channelsArray || []; // Your existing array of channels
+
+  function playChannelAtIndex(index) {
+    if (!window.channelsArray || window.channelsArray.length === 0) return;
+    
+    // Wrap around boundaries
+    if (index < 0) index = window.channelsArray.length - 1;
+    if (index >= window.channelsArray.length) index = 0;
+
+    window.currentChannelIndex = index;
+    const channel = window.channelsArray[index];
+
+    // If your app has an existing load/play function, invoke it here:
+    if (typeof window.loadChannel === 'function') {
+      window.loadChannel(channel);
+    } else if (channel && channel.url) {
+      video.src = channel.url;
+      video.play().catch(() => {});
+    }
+
+    showIndicator(`📺 ${channel.name || 'Channel ' + (index + 1)}`);
+  }
+
+  function nextChannel() {
+    playChannelAtIndex(window.currentChannelIndex + 1);
+  }
+
+  function prevChannel() {
+    playChannelAtIndex(window.currentChannelIndex - 1);
+  }
+
+  function toggleChannelList() {
+    const sidebar = document.getElementById('channelSidebar') || document.getElementById('playlist');
+    if (sidebar) {
+      sidebar.classList.toggle('open') || sidebar.classList.toggle('hidden');
+    } else if (typeof window.toggleSidebar === 'function') {
+      window.toggleSidebar();
+    }
+  }
+
+  function refreshStream() {
+    showIndicator("Refreshing Stream...");
+    const currentSrc = video.src;
+    video.src = '';
+    video.src = currentSrc;
+    video.load();
+    video.play().catch(() => {});
+  }
+
+  // Event Listeners for UI Navigation Buttons
+  document.getElementById('prevBtn')?.addEventListener('click', prevChannel);
+  document.getElementById('nextBtn')?.addEventListener('click', nextChannel);
+  document.getElementById('listToggleBtn')?.addEventListener('click', toggleChannelList);
+  document.getElementById('refreshBtn')?.addEventListener('click', refreshStream);
+  document.getElementById('homeBtn')?.addEventListener('click', () => window.location.href = '/');
+  document.getElementById('backBtn')?.addEventListener('click', () => window.history.back());
+
+  // ----------------------------------------------------
+  // 2. VOLUME CONTROL & LOCALSTORAGE SAVING
+  // ----------------------------------------------------
+  function setVolume(val) {
+    val = Math.max(0, Math.min(1, val));
+    video.volume = val;
+    video.muted = (val === 0);
+    volumeSlider.value = val * 100;
+    volumeVal.textContent = Math.round(val * 100) + '%';
+    muteBtn.textContent = video.muted ? '🔇' : '🔊';
+    localStorage.setItem('iptv_volume', val);
+  }
+
+  volumeSlider.addEventListener('input', (e) => setVolume(e.target.value / 100));
+
+  muteBtn.addEventListener('click', () => {
+    if (video.muted) {
+      setVolume(lastVolume > 0 ? lastVolume : 1);
+    } else {
+      lastVolume = video.volume;
+      setVolume(0);
+    }
+  });
+
+  // ----------------------------------------------------
+  // 3. BRIGHTNESS CONTROL (CSS Filter & Persistence)
+  // ----------------------------------------------------
+  function setBrightness(val) {
+    val = Math.max(0, Math.min(100, val));
+    const opacity = (100 - val) / 100; // 100% brightness = 0% darkness overlay
+    brightnessOverlay.style.opacity = opacity;
+    brightnessSlider.value = val;
+    brightnessVal.textContent = val + '%';
+    localStorage.setItem('iptv_brightness', val);
+  }
+
+  brightnessSlider.addEventListener('input', (e) => setBrightness(e.target.value));
+
+  // Load Saved Settings
+  const savedVol = localStorage.getItem('iptv_volume');
+  if (savedVol !== null) setVolume(parseFloat(savedVol));
+
+  const savedBright = localStorage.getItem('iptv_brightness');
+  if (savedBright !== null) setBrightness(parseInt(savedBright));
+
+  // ----------------------------------------------------
+  // 4. FULLSCREEN & LANDSCAPE OPTIMIZATION
+  // ----------------------------------------------------
+  async function toggleFullscreen() {
+    if (!document.fullscreenElement) {
+      await container.requestFullscreen().catch(err => console.log(err));
+      if (screen.orientation && screen.orientation.lock) {
+        screen.orientation.lock('landscape').catch(() => {});
+      }
+    } else {
+      document.exitFullscreen();
+    }
+  }
+
+  document.getElementById('fullscreenBtn')?.addEventListener('click', toggleFullscreen);
+  video.addEventListener('dblclick', toggleFullscreen);
+
+  // ----------------------------------------------------
+  // 5. FLOATING CONTROLS (Auto-hide after 3s)
+  // ----------------------------------------------------
+  function resetAutoHideTimer() {
+    controlsOverlay.classList.remove('hidden');
+    clearTimeout(autoHideTimer);
+    autoHideTimer = setTimeout(() => {
+      if (!video.paused) {
+        controlsOverlay.classList.add('hidden');
+      }
+    }, 3000);
+  }
+
+  ['mousemove', 'touchstart', 'keydown'].forEach(evt => {
+    container.addEventListener(evt, resetAutoHideTimer);
+  });
+
+  // ----------------------------------------------------
+  // 6. KEYBOARD SHORTCUTS & ANDROID TV REMOTE SUPPORT
+  // ----------------------------------------------------
+  window.addEventListener('keydown', (e) => {
+    resetAutoHideTimer();
+    switch (e.key) {
+      case 'ArrowLeft':
+        prevChannel();
+        break;
+      case 'ArrowRight':
+        nextChannel();
+        break;
+      case 'ArrowUp':
+        setVolume(video.volume + 0.05);
+        showIndicator(`🔊 ${Math.round(video.volume * 100)}%`);
+        break;
+      case 'ArrowDown':
+        setVolume(video.volume - 0.05);
+        showIndicator(`🔊 ${Math.round(video.volume * 100)}%`);
+        break;
+      case 'b': case 'B':
+        setBrightness(parseInt(brightnessSlider.value) + 5);
+        showIndicator(`☀️ ${brightnessSlider.value}%`);
+        break;
+      case 'n': case 'N':
+        setBrightness(parseInt(brightnessSlider.value) - 5);
+        showIndicator(`☀️ ${brightnessSlider.value}%`);
+        break;
+      case 'f': case 'F':
+        toggleFullscreen();
+        break;
+      case 'm': case 'M':
+        muteBtn.click();
+        break;
+      case ' ':
+        e.preventDefault();
+        video.paused ? video.play() : video.pause();
+        break;
+      case 'Enter':
+      case 'Select':
+        if (controlsOverlay.classList.contains('hidden')) {
+          resetAutoHideTimer();
+        }
+        break;
+      case 'Backspace':
+      case 'GoBack':
+        window.history.back();
+        break;
+    }
+  });
+
+  // ----------------------------------------------------
+  // 7. MOBILE SWIPE & GESTURE CONTROLS
+  // ----------------------------------------------------
+  let touchStartX = 0;
+  let touchStartY = 0;
+  let lastTapTime = 0;
+
+  container.addEventListener('touchstart', (e) => {
+    if (e.touches.length === 1) {
+      touchStartX = e.touches[0].clientX;
+      touchStartY = e.touches[0].clientY;
+
+      // Double Tap Play/Pause
+      const now = Date.now();
+      if (now - lastTapTime < 300) {
+        video.paused ? video.play() : video.pause();
+      }
+      lastTapTime = now;
+    }
+  }, { passive: true });
+
+  container.addEventListener('touchmove', (e) => {
+    if (e.touches.length !== 1) return;
+
+    const deltaX = e.touches[0].clientX - touchStartX;
+    const deltaY = touchStartY - e.touches[0].clientY; // Inverted Y-axis
+    const screenWidth = window.innerWidth;
+
+    if (Math.abs(deltaY) > Math.abs(deltaX) && Math.abs(deltaY) > 20) {
+      if (touchStartX < screenWidth / 2) {
+        // Left side vertical swipe -> Brightness
+        const change = Math.round(deltaY / 6);
+        setBrightness(parseInt(brightnessSlider.value) + change);
+        showIndicator(`☀️ ${brightnessSlider.value}%`);
+      } else {
+        // Right side vertical swipe -> Volume
+        const change = deltaY / 600;
+        setVolume(video.volume + change);
+        showIndicator(`🔊 ${Math.round(video.volume * 100)}%`);
+      }
+      touchStartY = e.touches[0].clientY;
+    }
+  }, { passive: true });
+
+  container.addEventListener('touchend', (e) => {
+    const deltaX = e.changedTouches[0].clientX - touchStartX;
+    if (Math.abs(deltaX) > 120) {
+      // Horizontal swipe -> Previous / Next Channel
+      deltaX > 0 ? prevChannel() : nextChannel();
+    }
+  });
+
+  // Helper Toast Feedback
+  let indicatorTimer;
+  function showIndicator(text) {
+    gestureIndicator.textContent = text;
+    gestureIndicator.classList.add('active');
+    clearTimeout(indicatorTimer);
+    indicatorTimer = setTimeout(() => gestureIndicator.classList.remove('active'), 1200);
+  }
+
+  // Initial call
+  resetAutoHideTimer();
+});
