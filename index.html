@@ -178,3 +178,50 @@
   <script src="app.js"></script>
 </body>
                   </html>
+<!-- Wrap your existing <video> inside a container element with id="playerContainer" if it isn't already -->
+<div class="player-container" id="playerContainer">
+  
+  <!-- CSS Overlay for Brightness Control (Does not alter actual video stream) -->
+  <div class="brightness-overlay" id="brightnessOverlay"></div>
+
+  <!-- Your existing video element -->
+  <video id="iptvPlayer" autoplay crossorigin playsinline>
+    <source src="" type="application/x-mpegURL">
+  </video>
+
+  <!-- Gesture / Action Feedback Toast -->
+  <div class="gesture-indicator" id="gestureIndicator">100%</div>
+
+  <!-- Glassmorphism Floating Controls Layer -->
+  <div class="controls-overlay" id="controlsOverlay">
+    
+    <!-- Top Bar: Volume & Brightness Sliders -->
+    <div class="sliders-panel glass-panel">
+      <!-- Brightness Slider -->
+      <div class="slider-group">
+        <span>☀️</span>
+        <input type="range" id="brightnessSlider" min="0" max="100" value="100">
+        <span id="brightnessVal">100%</span>
+      </div>
+
+      <!-- Volume Slider -->
+      <div class="slider-group">
+        <button class="btn" id="muteBtn">🔊</button>
+        <input type="range" id="volumeSlider" min="0" max="100" value="100">
+        <span id="volumeVal">100%</span>
+      </div>
+    </div>
+
+    <!-- Bottom Bar: On-Screen Navigation Controls -->
+    <div class="nav-bar glass-panel">
+      <button class="btn" id="prevBtn" title="Previous Channel">⏮️ Prev</button>
+      <button class="btn" id="nextBtn" title="Next Channel">⏭️ Next</button>
+      <button class="btn" id="listToggleBtn" title="Toggle Channel List">📋 List</button>
+      <button class="btn" id="refreshBtn" title="Refresh Stream">🔄 Refresh</button>
+      <button class="btn" id="homeBtn" title="Go Home">🏠 Home</button>
+      <button class="btn" id="backBtn" title="Go Back">🔙 Back</button>
+      <button class="btn" id="fullscreenBtn" title="Toggle Fullscreen">⛶ Fullscreen</button>
+    </div>
+
+  </div>
+</div>
